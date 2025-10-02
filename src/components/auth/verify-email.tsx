@@ -61,7 +61,7 @@ export function EmailVerificationForm() {
                     </InputOTP>
                     <SubmitButton
                         label="Submit"
-                        pending={false}
+                        pending={pending}
                         loading={
                             <Icons.spinner className="w-6 h-6 animate-spin" />
                         }

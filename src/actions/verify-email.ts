@@ -1,31 +1,100 @@
 "use server";
 
-import { getEmailVerificationRequestFromRequest } from "@/lib/server/email-verification";
+import {
+    createEmailVerificationRequest,
+    deleteEmailVerificationRequestCookie,
+    deleteEmailVerificationRequests,
+    getEmailVerificationRequestFromRequest,
+    sendVerificationEmail,
+    setEmailVerificationRequestCookie,
+} from "@/lib/server/email-verification";
 import { getCurrentSession } from "@/lib/server/session";
-import { formStateToError, toFormState } from "@/utils/form-message";
+import { updateUserEmailAndSetEmailAsVerified } from "@/lib/server/user";
+import { FormState, formStateToError, toFormState } from "@/utils/form-message";
+import { EmailVerifySchema } from "@/utils/form-schema";
 
-export async function verifyEmailAction(
-    _prev: ActionResult,
-    formData: FormData
-) {
+export async function verifyEmailAction(_prev: FormState, formData: FormData) {
     try {
-        const code = formData.get("pin");
+        const otp = formData.get("pin");
 
         const { session, user } = await getCurrentSession();
 
-        if (session === null) return toFormState("ERROR", "Not Authenticated");
+        if (session === null)
+            return toFormState("ERROR", "Not Authenticated", "/auth/login");
 
-        let verificatioRequest = await getEmailVerificationRequestFromRequest();
+        let verificationRequest =
+            await getEmailVerificationRequestFromRequest();
 
-        if (verificatioRequest === null)
-            return toFormState("ERROR", "Not Authenticated");
+        if (verificationRequest === null)
+            return toFormState("ERROR", "Not Authenticated", "/auth/login");
 
-        return toFormState("SUCCESS", "Success");
+        const code = EmailVerifySchema.parse(otp);
+
+        if (Date.now() >= verificationRequest.expiresAt.getTime()) {
+            verificationRequest = await createEmailVerificationRequest(
+                verificationRequest.userId,
+                verificationRequest.email
+            );
+            await sendVerificationEmail(
+                verificationRequest.email,
+                verificationRequest.code
+            );
+
+            return toFormState(
+                "ERROR",
+                "The verification code was expired. We sent another code to your inbox."
+            );
+        }
+
+        if (verificationRequest.code !== code)
+            return toFormState("ERROR", "Incorrect code. Please Try again");
+
+        await deleteEmailVerificationRequests(user.id);
+        await updateUserEmailAndSetEmailAsVerified(
+            user.id,
+            verificationRequest.email
+        );
+        await deleteEmailVerificationRequestCookie();
+
+        return toFormState("SUCCESS", "You are verified!", "/");
     } catch (err: unknown) {
         return formStateToError(err);
     }
 }
 
-interface ActionResult {
-    message: string;
+export async function resendEmailVerificationCodeAction() {
+    try {
+        const { session, user } = await getCurrentSession();
+
+        if (session === null)
+            return toFormState("ERROR", "Not Authenticated", "/auth/login");
+
+        let verificationRequest =
+            await getEmailVerificationRequestFromRequest();
+
+        if (verificationRequest === null) {
+            if (user.emailVerified)
+                return toFormState("ERROR", "Forbidden", "/");
+
+            verificationRequest = await createEmailVerificationRequest(
+                user.id,
+                user.email
+            );
+        } else {
+            verificationRequest = await createEmailVerificationRequest(
+                user.id,
+                user.email
+            );
+        }
+
+        await sendVerificationEmail(
+            verificationRequest.email,
+            verificationRequest.code
+        );
+        await setEmailVerificationRequestCookie(verificationRequest);
+
+        return toFormState("SUCCESS", "A new code was sent to your inbox!");
+    } catch (err: unknown) {
+        return formStateToError(err);
+    }
 }

@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { ZodError } from "zod";
 
 export interface FormState {
@@ -5,6 +6,7 @@ export interface FormState {
     message: string;
     fieldErrors: Record<string, string[] | undefined>;
     timestamp: number;
+    redirect: string;
 }
 
 export const EMPTY_STATE_FORM: FormState = {
@@ -12,15 +14,20 @@ export const EMPTY_STATE_FORM: FormState = {
     message: "",
     fieldErrors: {},
     timestamp: Date.now(),
+    redirect: "",
 };
 
-export const formStateToError = (error: unknown): FormState => {
+export const formStateToError = (
+    error: unknown,
+    redirect: string = ""
+): FormState => {
     if (error instanceof ZodError) {
         return {
             status: "ERROR" as const,
             message: "",
             fieldErrors: error.flatten().fieldErrors,
             timestamp: Date.now(),
+            redirect: "",
         };
     }
 
@@ -29,17 +36,20 @@ export const formStateToError = (error: unknown): FormState => {
         message: "An unkown error occured",
         fieldErrors: {},
         timestamp: Date.now(),
+        redirect: redirect,
     };
 };
 
 export const toFormState = (
     status: FormState["status"],
-    message: string
+    message: string,
+    redirect: string = ""
 ): FormState => {
     return {
         status,
         message,
         fieldErrors: {},
         timestamp: Date.now(),
+        redirect: redirect,
     };
 };

@@ -3,6 +3,7 @@ import { generateRandomRecoveryCode } from "../utils";
 import { encryptString } from "./encryption";
 import { hashPassword } from "./password";
 import db from "@/db";
+import { and, eq } from "drizzle-orm";
 
 export async function createUser(email: string, password: string) {
     const hashedPassword = await hashPassword(password);
@@ -28,4 +29,36 @@ export async function createUser(email: string, password: string) {
     };
 
     return user;
+}
+
+export async function updateUserPassword(userId: number, password: string) {
+    const passwordHash = await hashPassword(password);
+
+    await db
+        .update(userTable)
+        .set({ password: passwordHash })
+        .where(eq(userTable.id, userId));
+}
+
+export async function updateUserEmailAndSetEmailAsVerified(
+    userId: number,
+    email: string
+) {
+    await db
+        .update(userTable)
+        .set({ email: email, emailVerified: true })
+        .where(eq(userTable.id, userId));
+}
+
+export async function setUserEmailVerifiedIfEmailMatches(
+    userId: number,
+    email: string
+) {
+    const result = await db
+        .update(userTable)
+        .set({ emailVerified: true })
+        .where(and(eq(userTable.id, userId), eq(userTable.email, email)))
+        .returning();
+
+    return result.length > 0;
 }

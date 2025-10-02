@@ -12,11 +12,10 @@ import {
     setSessionTokenCookie,
 } from "@/lib/server/session";
 import { createUser } from "@/lib/server/user";
-import { formStateToError, toFormState } from "@/utils/form-message";
+import { FormState, formStateToError, toFormState } from "@/utils/form-message";
 import { SignUpSchema } from "@/utils/form-schema";
-import { redirect } from "next/navigation";
 
-export async function signUpAction(_: ActionResult, data: FormData) {
+export async function signUpAction(_: FormState, data: FormData) {
     try {
         const userData = {
             email: data.get("email"),
@@ -37,8 +36,6 @@ export async function signUpAction(_: ActionResult, data: FormData) {
             user.email
         );
 
-        console.log("the code is", emailVerificationRequest.code);
-
         await sendVerificationEmail(
             emailVerificationRequest.email,
             emailVerificationRequest.code
@@ -57,14 +54,13 @@ export async function signUpAction(_: ActionResult, data: FormData) {
 
         await setSessionTokenCookie(sessionToken, session.expiresAt);
 
-        return toFormState("SUCCESS", "Account created successfully");
-        // return redirect("/auth/2fa/setup");
+        return toFormState(
+            "SUCCESS",
+            "Account created successfully",
+            "/auth/verify-email"
+        );
     } catch (error: unknown) {
         console.error("error is", error);
         return formStateToError(error);
     }
-}
-
-interface ActionResult {
-    message: string;
 }
